@@ -1,6 +1,9 @@
 {
-  "name": "Privacy Simulator",
-  "description": "Simulates device spoofing and hardware identifier privacy controls using Gemini AI.",
+  "name": "DEVICE PRIVACY",
+  "description": "device spoofing and hardware identifier privacy controls using build.nvidia.com and/or puter.js AI.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API",
+    "MAJOR_CAPABILITY_SERVER_SIDE_API"
+  ]
 }

@@ -1,21 +1,35 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Privacy 
 
-# Run and deploy your AI Studio app
+An Android application focused on device privacy management and hardware footprint masking.
 
-This contains everything you need to run your app locally.
+## Building via Termux (On-Device)
 
-View your app in AI Studio: https://ai.studio/apps/0ca10939-ce69-4bcd-8d45-2c68ea654550
+This project includes a fully automated Bash script (`build_apk.sh`) designed to install dependencies, configure the Android SDK, and compile the APK directly on an Android device using Termux.
 
-## Run Locally
+### Prerequisites
+- [Termux](https://termux.dev/) installed on your Android device.
+- (Optional) An Nvidia API key exported as `NVIDIA_API_KEY` in your Termux environment for integrated AI build troubleshooting.
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+### Build Steps
+1. Open Termux.
+2. Ensure this project directory is accessible. If exported as a ZIP, extract it to a known directory (e.g., `~/storage/downloads/privacy-simulator`).
+3. Run the orchestration script:
+   ```bash
+   cd /path/to/project
+   bash build_apk.sh
+   ```
+4. The script will automatically:
+   - Request core Android storage permissions.
+   - Install required packages: `openjdk-17`, `wget`, `unzip`, `curl`, and `jq`.
+   - Setup the local Android SDK and accept required licenses.
+   - Compile the application using the Gradle daemon.
+   - Provide interactive troubleshooting if the build fails, leveraging the Nvidia AI API.
+5. Upon successful compilation, the final APK will be extracted to `/storage/emulated/0/Download/compiled-app.apk`.
 
+## Features
+- **Target App Selector:** Granularly manage which applications receive masked identities.
+- **Hardware Masking:** Configure simulated system properties (Model, Brand, Board, Manufacturer) to mimic different device footprints.
+- **Privacy Dashboard:** Monitor application identifier queries.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## Troubleshooting Termux Environments
+If you encounter `pip` or `python` package issues (such as `BackendUnavailable: Cannot import 'mesonpy'`) while using external Termux AI tools, verify that your Termux package repositories are correctly configured using the `termux-change-repo` command and ensure you are strictly utilizing `pkg install` for core compiler dependencies before dropping into Python/pip environments.
