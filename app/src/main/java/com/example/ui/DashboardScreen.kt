@@ -238,5 +238,21 @@ fun DashboardScreen(viewModel: MainViewModel) {
         item {
             Spacer(modifier = Modifier.height(16.dp))
         }
+        
+        item {
+            PrivacyControl(viewModel)
+        }
+        
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        item {
+            MistralTerminalPanel(viewModel)
+        }
+        
+        item {
+            Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 }

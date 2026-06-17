@@ -26,7 +26,7 @@ pkg install -y openjdk-17 wget unzip curl jq
 
 # The current directory is assumed to be the project root
 PROJECT_ROOT=$(pwd)
-OUTPUT_APK="/storage/emulated/0/Download/compiled-app.apk"
+OUTPUT_APK="$HOME/storage/downloads/compiled-app.apk"
 SDK_DIR="$HOME/android-sdk"
 
 # 3. Prepping Gradle environment

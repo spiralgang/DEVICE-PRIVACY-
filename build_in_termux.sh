@@ -25,9 +25,9 @@ pkg update -y
 pkg install -y openjdk-17 unzip wget
 
 # Variables Configuration
-ZIP_FILE="/storage/emulated/0/Download/privacy-simulator.zip"
+ZIP_FILE="$HOME/storage/downloads/privacy-simulator.zip"
 BUILD_DIR="$HOME/privacy-simulator-build"
-OUTPUT_APK="/storage/emulated/0/Download/privacy-simulator-compiled.apk"
+OUTPUT_APK="$HOME/storage/downloads/privacy-simulator-compiled.apk"
 SDK_DIR="$HOME/android-sdk"
 
 # 3. Environment Preparation
