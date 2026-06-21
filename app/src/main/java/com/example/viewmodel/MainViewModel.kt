@@ -18,10 +18,16 @@ import com.example.api.NvidiaRequest
 import com.example.api.NvidiaRetrofitClient
 import com.example.api.EdgeAssistant
 import com.example.data.EdgeConfig
+import com.example.exec.ShellRunner
+import java.io.File
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PrivacyRepository(application)
-    private val controlServer = ControlServer(repository).also { it.start() }
+
+    /** Sandbox working dir for the Edge codespace shell. */
+    private val shellWorkDir: File = File(application.filesDir, "codespace").apply { mkdirs() }
+
+    private val controlServer = ControlServer(repository, shellWorkDir).also { it.start() }
 
     val controlPort: Int = ControlServer.DEFAULT_PORT
 
@@ -39,8 +45,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             EdgeMessage(
                 "assistant",
                 "Dolphin // Codespace edge panel online. Backed by a free API workspace " +
-                    "(no local model). Ask me anything — code, scripts, device-privacy. " +
-                    "Swap the endpoint/model/prompt live via the control terminal (EDGE ...)."
+                    "(no local model). I can RUN the shell code I write in an on-device " +
+                    "sandbox — tap ▶ run under a code block, or flip 'auto-run shell' to let " +
+                    "me execute and self-correct. Swap the endpoint/model/prompt live via the " +
+                    "control terminal (EDGE ...; EDGE RUN <cmd> to exec from there)."
             )
         )
     )
@@ -48,6 +56,42 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isEdgeLoading = MutableStateFlow(false)
     val isEdgeLoading: StateFlow<Boolean> = _isEdgeLoading.asStateFlow()
+
+    /** When on, the assistant's shell code blocks are executed automatically and the
+     *  output is fed back so it can iterate (a bounded agent loop). */
+    private val _edgeAutoRun = MutableStateFlow(false)
+    val edgeAutoRun: StateFlow<Boolean> = _edgeAutoRun.asStateFlow()
+
+    fun setEdgeAutoRun(enabled: Boolean) { _edgeAutoRun.value = enabled }
+
+    data class CodeBlock(val lang: String, val code: String)
+
+    private val codeBlockRegex = Regex("```([a-zA-Z0-9_+-]*)\\s*\\n([\\s\\S]*?)```")
+
+    fun extractCodeBlocks(text: String): List<CodeBlock> =
+        codeBlockRegex.findAll(text)
+            .map { CodeBlock(it.groupValues[1].lowercase(), it.groupValues[2].trim()) }
+            .filter { it.code.isNotBlank() }
+            .toList()
+
+    fun isRunnable(lang: String): Boolean =
+        lang in setOf("", "sh", "bash", "shell", "console", "zsh", "ksh", "text")
+
+    /** Execute a single shell command/script in the sandbox and append the transcript. */
+    fun runShell(command: String) {
+        if (command.isBlank() || _isEdgeLoading.value) return
+        viewModelScope.launch {
+            _isEdgeLoading.value = true
+            try {
+                val res = ShellRunner.run(command, shellWorkDir)
+                _edgeMessages.value = _edgeMessages.value + EdgeMessage("shell", ShellRunner.transcript(res))
+            } catch (e: Exception) {
+                _edgeMessages.value = _edgeMessages.value + EdgeMessage("shell", "[ERR] ${e.message}")
+            } finally {
+                _isEdgeLoading.value = false
+            }
+        }
+    }
 
     /** Resolves the effective API key: explicit override, else the preset's BuildConfig key. */
     private fun resolveEdgeKey(config: EdgeConfig): String {
@@ -71,7 +115,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     .filter { it.role == "user" || it.role == "assistant" }
                     .takeLast(12)
                     .map { EdgeAssistant.Turn(it.role, it.content) }
-                val reply = EdgeAssistant.complete(
+                var reply = EdgeAssistant.complete(
                     baseUrl = config.baseUrl,
                     model = config.model,
                     apiKey = resolveEdgeKey(config),
@@ -79,12 +123,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     history = turns
                 )
                 _edgeMessages.value = _edgeMessages.value + EdgeMessage("assistant", reply)
+
+                // Agentic shell loop: run the assistant's shell code, feed output back, iterate.
+                if (_edgeAutoRun.value) {
+                    var steps = 0
+                    while (steps < MAX_AUTO_STEPS) {
+                        val block = extractCodeBlocks(reply).firstOrNull { isRunnable(it.lang) } ?: break
+                        val res = ShellRunner.run(block.code, shellWorkDir)
+                        _edgeMessages.value = _edgeMessages.value + EdgeMessage("shell", ShellRunner.transcript(res))
+
+                        val feedback = EdgeAssistant.Turn(
+                            "user",
+                            "I ran your shell block in the on-device sandbox. exit=${res.exitCode}.\n" +
+                                "stdout:\n${res.stdout.take(3000)}\n" +
+                                "stderr:\n${res.stderr.take(1500)}\n" +
+                                "If it succeeded, confirm briefly. If it failed, reply with ONE corrected " +
+                                "shell code block and nothing else."
+                        )
+                        val nextTurns = _edgeMessages.value
+                            .filter { it.role == "user" || it.role == "assistant" }
+                            .takeLast(12)
+                            .map { EdgeAssistant.Turn(it.role, it.content) } + feedback
+                        reply = EdgeAssistant.complete(
+                            baseUrl = config.baseUrl,
+                            model = config.model,
+                            apiKey = resolveEdgeKey(config),
+                            systemPrompt = config.systemPrompt,
+                            history = nextTurns
+                        )
+                        _edgeMessages.value = _edgeMessages.value + EdgeMessage("assistant", reply)
+                        if (res.exitCode == 0) break
+                        steps++
+                    }
+                }
             } catch (e: Exception) {
                 _edgeMessages.value = _edgeMessages.value + EdgeMessage("assistant", "[ERR] ${e.message}")
             } finally {
                 _isEdgeLoading.value = false
             }
         }
+    }
+
+    companion object {
+        private const val MAX_AUTO_STEPS = 3
     }
 
     private val _aiAnalysisOutput = MutableStateFlow("Tap the Analyze button below to run the AI FSM bot check.")

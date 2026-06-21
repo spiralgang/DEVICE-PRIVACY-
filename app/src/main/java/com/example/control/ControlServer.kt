@@ -3,6 +3,7 @@ package com.example.control
 import android.util.Log
 import com.example.data.DeviceProfile
 import com.example.data.PrivacyRepository
+import com.example.exec.ShellRunner
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -10,6 +11,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import java.io.File
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -31,6 +34,7 @@ import java.util.Collections
  */
 class ControlServer(
     private val repository: PrivacyRepository,
+    private val shellWorkDir: File,
     private val port: Int = DEFAULT_PORT
 ) {
     companion object {
@@ -241,6 +245,11 @@ class ControlServer(
                 repository.updateEdgeConfig(systemPrompt = rest)
                 "edge system prompt set (${rest.length} chars)"
             }
+            "RUN" -> {
+                if (rest.isBlank()) return "usage: EDGE RUN <shell command>"
+                val res = runBlocking { ShellRunner.run(rest, shellWorkDir) }
+                ShellRunner.transcript(res)
+            }
             "PRESET" -> when (rest.uppercase()) {
                 "MISTRAL" -> {
                     repository.updateEdgeConfig(
@@ -262,7 +271,7 @@ class ControlServer(
                 }
                 else -> "usage: EDGE PRESET MISTRAL|NVIDIA"
             }
-            else -> "usage: EDGE STATUS | URL <u> | MODEL <m> | KEY <k> | PROMPT <text> | PRESET MISTRAL|NVIDIA"
+            else -> "usage: EDGE STATUS | URL <u> | MODEL <m> | KEY <k> | PROMPT <text> | PRESET MISTRAL|NVIDIA | RUN <cmd>"
         }
     }
 
@@ -354,6 +363,7 @@ class ControlServer(
           EDGE MODEL <model>           set the Edge model id
           EDGE KEY <key>               set the Edge API key (runtime override)
           EDGE PROMPT <text>           set the Edge system prompt
+          EDGE RUN <cmd>               run a shell command in the codespace sandbox
           ADDON <json>                 bulk-load profiles + identifiers from JSON
           EXPORT                       export current identifiers (JSON)
           QUIT                         close the session

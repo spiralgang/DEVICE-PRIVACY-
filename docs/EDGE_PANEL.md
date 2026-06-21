@@ -41,6 +41,52 @@ EDGE KEY  <token>
 
 The panel picks up the new endpoint/model/prompt on the next message — no APK changes required.
 
+## Executing the code the AI writes (on-device shell)
+
+The Edge panel doesn't just *print* code — it can **run** it. Execution goes through the device's
+POSIX shell (`/system/bin/sh` = mksh, with toybox applets on `PATH`) inside the app's private
+sandbox directory (`filesDir/codespace`). Implementation: `app/src/main/java/com/example/exec/ShellRunner.kt`.
+
+- **▶ run** — every runnable shell code block (```sh / ```bash / unlabeled) in an assistant reply
+  renders a `▶ run` chip; tapping it executes the block and appends a `shell · codespace-sandbox`
+  transcript bubble (`$ cmd`, stdout, stderr, `[exit N · Tms]`).
+- **auto-run shell** — the header toggle turns the panel into a bounded agent loop: the assistant's
+  shell block is executed automatically and its stdout/stderr is fed back to the model so it can
+  confirm success or emit a corrected block (up to `MAX_AUTO_STEPS = 3` iterations, stopping on
+  exit 0).
+- **From the control terminal:** `EDGE RUN <cmd>` runs a command in the same sandbox and returns the
+  transcript over the loopback socket — no decompile, no rebuild.
+
+```
+EDGE RUN uname -a
+EDGE RUN sh -c 'echo hi > f.txt && cat f.txt'
+```
+
+### Scope / limits
+The sandbox is an **unprivileged** app process: no root, and `dockerd`/`containerd`/`systemd`/
+`xfce` are not possible inside an Android app (they need a privileged host). What *is* available is
+a real POSIX shell + toybox coreutils, file I/O in the sandbox, and process spawning.
+
+For a fuller Linux userland (python / node / venv / tmux / clang / proot), install **Termux** and
+route execution through its `RUN_COMMAND` intent instead of the in-app shell:
+
+1. Install Termux + the Termux:API addon; in `~/.termux/termux.properties` set
+   `allow-external-apps=true`.
+2. Declare `com.termux.permission.RUN_COMMAND` and fire:
+   ```kotlin
+   val i = Intent("com.termux.RUN_COMMAND").apply {
+       setClassName("com.termux", "com.termux.app.RunCommandService")
+       putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/python")
+       putExtra("com.termux.RUN_COMMAND_ARGUMENTS", arrayOf("-c", code))
+       putExtra("com.termux.RUN_COMMAND_BACKGROUND", true)
+   }
+   startService(i)
+   ```
+3. Collect results via a `PendingIntent` result receiver (Termux writes stdout/stderr/exit back).
+
+The Termux bridge needs Termux installed and is therefore documented (not vendored); the in-app
+`ShellRunner` works on every device out of the box.
+
 ## Optional: true Samsung Edge (Slook cocktail) panel
 
 The in-app tab covers all devices. To *also* expose the assistant as a Samsung Edge single-plus

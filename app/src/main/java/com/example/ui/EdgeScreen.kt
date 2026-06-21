@@ -16,12 +16,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -49,6 +53,7 @@ fun EdgeScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val messages by viewModel.edgeMessages.collectAsStateWithLifecycle()
     val isLoading by viewModel.isEdgeLoading.collectAsStateWithLifecycle()
     val config by viewModel.edgeConfig.collectAsStateWithLifecycle()
+    val autoRun by viewModel.edgeAutoRun.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -74,7 +79,26 @@ fun EdgeScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "auto-run shell",
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = if (autoRun) NeonGreen else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.widthIn(min = 8.dp))
+            Switch(
+                checked = autoRun,
+                onCheckedChange = { viewModel.setEdgeAutoRun(it) },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = NeonGreen,
+                    checkedTrackColor = NeonGreen.copy(alpha = 0.35f),
+                    uncheckedThumbColor = NeonCyan.copy(alpha = 0.7f)
+                )
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
 
         LazyColumn(
             state = listState,
@@ -86,7 +110,16 @@ fun EdgeScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(messages) { msg -> EdgeBubble(role = msg.role, content = msg.content) }
+            items(messages) { msg ->
+                EdgeBubble(
+                    role = msg.role,
+                    content = msg.content,
+                    runnableBlocks = if (msg.role == "assistant")
+                        viewModel.extractCodeBlocks(msg.content).filter { viewModel.isRunnable(it.lang) }
+                    else emptyList(),
+                    onRun = { viewModel.runShell(it) }
+                )
+            }
             if (isLoading) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -147,10 +180,29 @@ fun EdgeScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun EdgeBubble(role: String, content: String) {
+private fun EdgeBubble(
+    role: String,
+    content: String,
+    runnableBlocks: List<MainViewModel.CodeBlock> = emptyList(),
+    onRun: (String) -> Unit = {}
+) {
     val isUser = role == "user"
-    val bubbleColor = if (isUser) NeonMagenta.copy(alpha = 0.18f) else NeonCyan.copy(alpha = 0.10f)
-    val accent = if (isUser) NeonMagenta else NeonCyan
+    val isShell = role == "shell"
+    val bubbleColor = when {
+        isUser -> NeonMagenta.copy(alpha = 0.18f)
+        isShell -> NeonGreen.copy(alpha = 0.10f)
+        else -> NeonCyan.copy(alpha = 0.10f)
+    }
+    val accent = when {
+        isUser -> NeonMagenta
+        isShell -> NeonGreen
+        else -> NeonCyan
+    }
+    val label = when {
+        isUser -> "you"
+        isShell -> "shell · codespace-sandbox"
+        else -> "codespace"
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
@@ -163,7 +215,7 @@ private fun EdgeBubble(role: String, content: String) {
                 .padding(12.dp)
         ) {
             Text(
-                if (isUser) "you" else "codespace",
+                label,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
@@ -176,6 +228,21 @@ private fun EdgeBubble(role: String, content: String) {
                 fontFamily = if (isUser) FontFamily.Default else FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.onBackground
             )
+            runnableBlocks.forEach { block ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "▶ run",
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = NeonGreen,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, NeonGreen.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                        .clickable { onRun(block.code) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
         }
     }
 }
