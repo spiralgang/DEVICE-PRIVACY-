@@ -89,7 +89,6 @@ object EdgeAssistant {
     private fun chatCompletionsUrl(baseUrl: String): String {
         val trimmed = baseUrl.trim()
         return when {
-        return when {
             trimmed.endsWith("/chat/completions") -> trimmed
             trimmed.endsWith("/v1/") -> trimmed + "chat/completions"
             trimmed.endsWith("/v1") -> "$trimmed/chat/completions"
