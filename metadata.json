@@ -1,9 +1,8 @@
 {
   "name": "DEVICE PRIVACY",
-  "description": "device spoofing and hardware identifier privacy controls using build.nvidia.com and/or puter.js AI.",
+  "description": "device spoofing and hardware identifier privacy controls using build.nvidia.com and Mistral AI.",
   "requestFramePermissions": [],
   "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API",
     "MAJOR_CAPABILITY_SERVER_SIDE_API"
   ]
 }

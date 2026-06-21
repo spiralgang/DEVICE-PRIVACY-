@@ -10,9 +10,14 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+/app/build
+**/build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
 .env
 debug.keystore
+release.keystore
+*.keystore
+*.jks

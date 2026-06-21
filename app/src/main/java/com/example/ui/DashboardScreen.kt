@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,14 +27,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.viewmodel.MainViewModel
 
 @Composable
-fun DashboardScreen(viewModel: MainViewModel) {
+fun DashboardScreen(viewModel: MainViewModel, controlPort: Int = 8765, modifier: Modifier = Modifier) {
     val aiOutput by viewModel.aiAnalysisOutput.collectAsStateWithLifecycle()
     val isAnalyzing by viewModel.isAnalyzing.collectAsStateWithLifecycle()
     val score = viewModel.privacyRiskScore
     val targetApps by viewModel.targetApps.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -242,7 +243,15 @@ fun DashboardScreen(viewModel: MainViewModel) {
         item {
             PrivacyControl(viewModel)
         }
-        
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        item {
+            ControlTerminalCard(controlPort)
+        }
+
         item {
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -254,5 +263,54 @@ fun DashboardScreen(viewModel: MainViewModel) {
         item {
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+}
+
+@Composable
+fun ControlTerminalCard(port: Int) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.tertiary, RoundedCornerShape(20.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.tertiary)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "EXTERNAL CONTROL TERMINAL",
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                letterSpacing = 1.sp,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Live-modify this app and load add-ons without decompiling. " +
+                "A loopback control link listens on 127.0.0.1:$port.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "$ adb forward tcp:$port tcp:$port\n$ nc localhost $port\nroot@device-privacy:~# HELP",
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.tertiary,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.Black)
+                .padding(12.dp)
+        )
     }
 }

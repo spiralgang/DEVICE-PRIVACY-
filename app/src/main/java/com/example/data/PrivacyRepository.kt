@@ -108,6 +108,12 @@ class PrivacyRepository(context: Context) {
         _selectedProfile.value = profile
     }
 
+    fun addDeviceProfile(profile: DeviceProfile) {
+        if (_deviceProfiles.value.none { it.model.equals(profile.model, ignoreCase = true) }) {
+            _deviceProfiles.value = _deviceProfiles.value + profile
+        }
+    }
+
     fun updateHardwareIds(
         useSpoofedMac: Boolean,
         spoofedMac: String,

@@ -3,13 +3,7 @@ package com.example.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.api.Content
-import com.example.api.GenerateContentRequest
-import com.example.api.GenerationConfig
-import com.example.api.Part
-import com.example.api.RetrofitClient
-import com.example.api.ThinkingConfig
-import com.example.data.AppModel
+import com.example.control.ControlServer
 import com.example.data.PrivacyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +13,15 @@ import com.example.BuildConfig
 import com.example.api.MistralMessage
 import com.example.api.MistralRequest
 import com.example.api.MistralRetrofitClient
+import com.example.api.NvidiaMessage
+import com.example.api.NvidiaRequest
+import com.example.api.NvidiaRetrofitClient
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PrivacyRepository(application)
+    private val controlServer = ControlServer(repository).also { it.start() }
+
+    val controlPort: Int = ControlServer.DEFAULT_PORT
 
     val targetApps = repository.targetApps
     val deviceProfiles = repository.deviceProfiles
@@ -100,6 +100,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun generateRandomSpoofedIds() {
         repository.generateRandomSpoofedIds()
     }
+
+    override fun onCleared() {
+        super.onCleared()
+        controlServer.stop()
+    }
     
     fun resetToReal() {
         repository.resetToReal()
@@ -136,7 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runAiAnalysis() {
         viewModelScope.launch {
             _isAnalyzing.value = true
-            _aiAnalysisOutput.value = "Analyzing current configuration with Gemini 3.1 Pro Preview..."
+            _aiAnalysisOutput.value = "Analyzing current configuration with NVIDIA Llama 3.3 70B..."
             
             val apps = targetApps.value
             val profile = selectedProfile.value
@@ -148,19 +153,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 - Spoofed Target Apps: $spoofedAppsCount out of ${apps.size}
                 - Selected Mock Device Profile: ${profile?.model ?: "Unknown"} by ${profile?.manufacturer ?: "Unknown"}
                 
-                Simulate a Play Integrity / SafetyNet check based on this profile and tell the user if their spoofed configuration is likely to trigger detection mechanisms in high-security apps like Snapchat. Provide a short, 3-4 sentence risk report. Use a High Thinking level to analyze the implications of spoofing high-risk identifiers.
+                Simulate a Play Integrity / SafetyNet check based on this profile and tell the user if their spoofed configuration is likely to trigger detection mechanisms in high-security apps like Snapchat. Provide a short, 3-4 sentence risk report and analyze the implications of spoofing high-risk identifiers.
             """.trimIndent()
 
             try {
-                val request = GenerateContentRequest(
-                    contents = listOf(Content(parts = listOf(Part(text = prompt)))),
-                    generationConfig = GenerationConfig(thinkingConfig = ThinkingConfig(thinkingLevel = "HIGH"))
+                val apiKey = BuildConfig.NVIDIA_API_KEY
+                if (apiKey.isEmpty()) {
+                    _aiAnalysisOutput.value = "NVIDIA_API_KEY not found in secrets."
+                    return@launch
+                }
+                val request = NvidiaRequest(
+                    messages = listOf(
+                        NvidiaMessage(
+                            role = "system",
+                            content = "You are a privacy expert AI assistant (AI FSM Bot) specializing in Android device spoofing and hardware identifier privacy."
+                        ),
+                        NvidiaMessage(role = "user", content = prompt)
+                    )
                 )
-                val response = RetrofitClient.service.generateContent(
-                    apiKey = BuildConfig.GEMINI_API_KEY,
+                val response = NvidiaRetrofitClient.service.generateContent(
+                    authHeader = "Bearer $apiKey",
                     request = request
                 )
-                val resultText = response.candidates.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                val resultText = response.choices.firstOrNull()?.message?.content
                 _aiAnalysisOutput.value = resultText ?: "Analysis complete, but no result generated."
             } catch (e: Exception) {
                 _aiAnalysisOutput.value = "Error during analysis: ${e.message}"
