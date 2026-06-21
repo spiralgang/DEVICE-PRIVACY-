@@ -161,17 +161,19 @@ class PrivacyRepository(context: Context) {
         )
     }
 
+    @Synchronized
     fun generateRandomSpoofedIds() {
         val randMac = (1..6).joinToString(":") { String.format("%02X", Random.nextInt(256)) }
         val randImei = (1..15).joinToString("") { Random.nextInt(10).toString() }
         val randDeviceId = (1..16).joinToString("") { "%x".format(Random.nextInt(16)) }
-        
+
+        val current = _hardwareIdentifiers.value
         updateHardwareIds(
-            _hardwareIdentifiers.value.useSpoofedMac,
+            current.useSpoofedMac,
             randMac,
-            _hardwareIdentifiers.value.useSpoofedImei,
+            current.useSpoofedImei,
             randImei,
-            _hardwareIdentifiers.value.useSpoofedDeviceId,
+            current.useSpoofedDeviceId,
             randDeviceId
         )
     }
