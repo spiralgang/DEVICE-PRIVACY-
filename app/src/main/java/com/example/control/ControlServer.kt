@@ -156,6 +156,7 @@ class ControlServer(
             }
             "PROFILES" -> profilesList()
             "PROFILE" -> handleProfile(arg)
+            "EDGE" -> handleEdge(arg)
             "ADDON" -> handleAddon(arg)
             "EXPORT" -> exportJson()
             else -> "[ERR] unknown command: $verb (type HELP)"
@@ -212,6 +213,68 @@ class ControlServer(
             }
             else -> "usage: PROFILE ADD <mfg>|<model>|<board>  |  PROFILE SELECT <model>"
         }
+    }
+
+    private fun handleEdge(arg: String): String {
+        val sub = arg.split(Regex("\\s+"), limit = 2)
+        val action = sub[0].uppercase()
+        val rest = sub.getOrNull(1)?.trim() ?: ""
+        return when (action) {
+            "", "STATUS" -> edgeStatus()
+            "URL" -> {
+                if (rest.isBlank()) return "usage: EDGE URL <base-url-or-chat-completions-url>"
+                repository.updateEdgeConfig(baseUrl = rest, preset = "CUSTOM")
+                "edge base url set\n" + edgeStatus()
+            }
+            "MODEL" -> {
+                if (rest.isBlank()) return "usage: EDGE MODEL <model-id>"
+                repository.updateEdgeConfig(model = rest)
+                "edge model set\n" + edgeStatus()
+            }
+            "KEY" -> {
+                if (rest.isBlank()) return "usage: EDGE KEY <api-key>"
+                repository.updateEdgeConfig(apiKey = rest)
+                "edge api key set (hidden)"
+            }
+            "PROMPT" -> {
+                if (rest.isBlank()) return "usage: EDGE PROMPT <system prompt text>"
+                repository.updateEdgeConfig(systemPrompt = rest)
+                "edge system prompt set (${rest.length} chars)"
+            }
+            "PRESET" -> when (rest.uppercase()) {
+                "MISTRAL" -> {
+                    repository.updateEdgeConfig(
+                        baseUrl = "https://api.mistral.ai/",
+                        model = "mistral-small-latest",
+                        apiKey = "",
+                        preset = "MISTRAL"
+                    )
+                    "edge preset -> MISTRAL\n" + edgeStatus()
+                }
+                "NVIDIA" -> {
+                    repository.updateEdgeConfig(
+                        baseUrl = "https://integrate.api.nvidia.com/",
+                        model = "qwen/qwen3-next-80b-a3b-instruct",
+                        apiKey = "",
+                        preset = "NVIDIA"
+                    )
+                    "edge preset -> NVIDIA\n" + edgeStatus()
+                }
+                else -> "usage: EDGE PRESET MISTRAL|NVIDIA"
+            }
+            else -> "usage: EDGE STATUS | URL <u> | MODEL <m> | KEY <k> | PROMPT <text> | PRESET MISTRAL|NVIDIA"
+        }
+    }
+
+    private fun edgeStatus(): String {
+        val c = repository.edgeConfig.value
+        return JSONObject().apply {
+            put("preset", c.preset)
+            put("baseUrl", c.baseUrl)
+            put("model", c.model)
+            put("keyOverride", c.apiKey.isNotBlank())
+            put("systemPromptChars", c.systemPrompt.length)
+        }.toString(2)
     }
 
     private fun handleAddon(arg: String): String {
@@ -285,6 +348,12 @@ class ControlServer(
           PROFILES                     list device profiles
           PROFILE ADD <mfg>|<model>|<board>   add an add-on device profile
           PROFILE SELECT <model>       select a device profile
+          EDGE STATUS                  show Edge assistant endpoint config (JSON)
+          EDGE PRESET MISTRAL|NVIDIA   switch Edge endpoint to a built-in free workspace
+          EDGE URL <url>               point Edge at a custom OpenAI-compatible endpoint
+          EDGE MODEL <model>           set the Edge model id
+          EDGE KEY <key>               set the Edge API key (runtime override)
+          EDGE PROMPT <text>           set the Edge system prompt
           ADDON <json>                 bulk-load profiles + identifiers from JSON
           EXPORT                       export current identifiers (JSON)
           QUIT                         close the session

@@ -16,6 +16,8 @@ import com.example.api.MistralRetrofitClient
 import com.example.api.NvidiaMessage
 import com.example.api.NvidiaRequest
 import com.example.api.NvidiaRetrofitClient
+import com.example.api.EdgeAssistant
+import com.example.data.EdgeConfig
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PrivacyRepository(application)
@@ -28,6 +30,62 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedProfile = repository.selectedProfile
     val hardwareIdentifiers = repository.hardwareIdentifiers
     val history = repository.history
+    val edgeConfig = repository.edgeConfig
+
+    data class EdgeMessage(val role: String, val content: String)
+
+    private val _edgeMessages = MutableStateFlow(
+        listOf(
+            EdgeMessage(
+                "assistant",
+                "Dolphin // Codespace edge panel online. Backed by a free API workspace " +
+                    "(no local model). Ask me anything — code, scripts, device-privacy. " +
+                    "Swap the endpoint/model/prompt live via the control terminal (EDGE ...)."
+            )
+        )
+    )
+    val edgeMessages: StateFlow<List<EdgeMessage>> = _edgeMessages.asStateFlow()
+
+    private val _isEdgeLoading = MutableStateFlow(false)
+    val isEdgeLoading: StateFlow<Boolean> = _isEdgeLoading.asStateFlow()
+
+    /** Resolves the effective API key: explicit override, else the preset's BuildConfig key. */
+    private fun resolveEdgeKey(config: EdgeConfig): String {
+        if (config.apiKey.isNotBlank()) return config.apiKey
+        return when (config.preset.uppercase()) {
+            "NVIDIA" -> BuildConfig.NVIDIA_API_KEY
+            "MISTRAL" -> BuildConfig.MISTRAL_API_KEY
+            else -> ""
+        }
+    }
+
+    fun sendEdgeMessage(text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() || _isEdgeLoading.value) return
+        viewModelScope.launch {
+            _isEdgeLoading.value = true
+            _edgeMessages.value = _edgeMessages.value + EdgeMessage("user", trimmed)
+            try {
+                val config = edgeConfig.value
+                val turns = _edgeMessages.value
+                    .filter { it.role == "user" || it.role == "assistant" }
+                    .takeLast(12)
+                    .map { EdgeAssistant.Turn(it.role, it.content) }
+                val reply = EdgeAssistant.complete(
+                    baseUrl = config.baseUrl,
+                    model = config.model,
+                    apiKey = resolveEdgeKey(config),
+                    systemPrompt = config.systemPrompt,
+                    history = turns
+                )
+                _edgeMessages.value = _edgeMessages.value + EdgeMessage("assistant", reply)
+            } catch (e: Exception) {
+                _edgeMessages.value = _edgeMessages.value + EdgeMessage("assistant", "[ERR] ${e.message}")
+            } finally {
+                _isEdgeLoading.value = false
+            }
+        }
+    }
 
     private val _aiAnalysisOutput = MutableStateFlow("Tap the Analyze button below to run the AI FSM bot check.")
     val aiAnalysisOutput: StateFlow<String> = _aiAnalysisOutput.asStateFlow()

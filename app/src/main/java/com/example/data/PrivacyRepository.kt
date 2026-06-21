@@ -29,6 +29,20 @@ data class HardwareIdentifiers(
     val spoofedDeviceId: String
 )
 
+/**
+ * Runtime-configurable settings for the Edge "Codespace" assistant. Every field can
+ * be changed live over the external control terminal (EDGE commands) without
+ * rebuilding or decompiling the app. No locally installed model is used: [baseUrl]
+ * points at a free OpenAI-compatible API workspace (Mistral, NVIDIA, or custom).
+ */
+data class EdgeConfig(
+    val baseUrl: String,
+    val model: String,
+    val apiKey: String,
+    val systemPrompt: String,
+    val preset: String
+)
+
 class PreferencesManager(context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("privacy_prefs", Context.MODE_PRIVATE)
 
@@ -98,6 +112,42 @@ class PrivacyRepository(context: Context) {
     private val _history = MutableStateFlow<List<HardwareIdentifiers>>(emptyList())
     val history: StateFlow<List<HardwareIdentifiers>> = _history.asStateFlow()
 
+    private val _edgeConfig = MutableStateFlow(
+        EdgeConfig(
+            baseUrl = "https://api.mistral.ai/",
+            model = "mistral-small-latest",
+            apiKey = "",
+            systemPrompt = DEFAULT_EDGE_PROMPT,
+            preset = "MISTRAL"
+        )
+    )
+    val edgeConfig: StateFlow<EdgeConfig> = _edgeConfig.asStateFlow()
+
+    @Synchronized
+    fun updateEdgeConfig(
+        baseUrl: String? = null,
+        model: String? = null,
+        apiKey: String? = null,
+        systemPrompt: String? = null,
+        preset: String? = null
+    ) {
+        val cur = _edgeConfig.value
+        _edgeConfig.value = cur.copy(
+            baseUrl = baseUrl ?: cur.baseUrl,
+            model = model ?: cur.model,
+            apiKey = apiKey ?: cur.apiKey,
+            systemPrompt = systemPrompt ?: cur.systemPrompt,
+            preset = preset ?: cur.preset
+        )
+    }
+
+    companion object {
+        const val DEFAULT_EDGE_PROMPT =
+            "You are the Codespace edge assistant: a sharp, neon-lit coding and " +
+            "device-privacy copilot. Answer concisely with working code and clear, " +
+            "direct explanations. Prefer concrete examples over caveats."
+    }
+
     @Synchronized
     fun toggleAppSpoofing(packageName: String) {
         _targetApps.value = _targetApps.value.map {
@@ -161,6 +211,7 @@ class PrivacyRepository(context: Context) {
         )
     }
 
+    @Synchronized
     fun generateRandomSpoofedIds() {
         val randMac = (1..6).joinToString(":") { String.format("%02X", Random.nextInt(256)) }
         val randImei = (1..15).joinToString("") { Random.nextInt(10).toString() }
