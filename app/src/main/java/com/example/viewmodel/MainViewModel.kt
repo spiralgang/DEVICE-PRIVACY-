@@ -16,12 +16,135 @@ import com.example.api.MistralRetrofitClient
 import com.example.api.NvidiaMessage
 import com.example.api.NvidiaRequest
 import com.example.api.NvidiaRetrofitClient
+import com.example.repackage.ApkInstaller
+import com.example.repackage.InstalledApp
+import com.example.repackage.InstalledApps
+import com.example.repackage.PipelineStep
+import com.example.repackage.ProotProvisioner
+import com.example.repackage.RepackagingPipeline
+import com.example.repackage.ShellEngine
+import com.example.repackage.SpoofSpec
+import java.io.File
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = PrivacyRepository(application)
     private val controlServer = ControlServer(repository).also { it.start() }
 
     val controlPort: Int = ControlServer.DEFAULT_PORT
+
+    // --- Forge: on-device repackaging spoofer (Phase 1) ---
+    private val shellEngine = ShellEngine(application)
+    private val provisioner = ProotProvisioner(application)
+    private val installedApps = InstalledApps(application)
+    private val apkInstaller = ApkInstaller(application)
+    private val forgePrefs = application.getSharedPreferences("forge_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _remoteEndpoint = MutableStateFlow(forgePrefs.getString("remote_build_url", "") ?: "")
+    val remoteEndpoint: StateFlow<String> = _remoteEndpoint.asStateFlow()
+
+    private val pipeline = RepackagingPipeline(application, shellEngine, provisioner) { _remoteEndpoint.value }
+
+    fun setRemoteEndpoint(url: String) {
+        _remoteEndpoint.value = url.trim()
+        forgePrefs.edit().putString("remote_build_url", url.trim()).apply()
+    }
+
+    private val _forgeApps = MutableStateFlow<List<InstalledApp>>(emptyList())
+    val forgeApps: StateFlow<List<InstalledApp>> = _forgeApps.asStateFlow()
+
+    private val _selectedForgeApp = MutableStateFlow<InstalledApp?>(null)
+    val selectedForgeApp: StateFlow<InstalledApp?> = _selectedForgeApp.asStateFlow()
+
+    private val _terminalOutput = MutableStateFlow("")
+    val terminalOutput: StateFlow<String> = _terminalOutput.asStateFlow()
+
+    private val _pipelineSteps = MutableStateFlow<List<PipelineStep>>(emptyList())
+    val pipelineSteps: StateFlow<List<PipelineStep>> = _pipelineSteps.asStateFlow()
+
+    private val _forgeBusy = MutableStateFlow(false)
+    val forgeBusy: StateFlow<Boolean> = _forgeBusy.asStateFlow()
+
+    private val _toolchainStatus = MutableStateFlow(provisioner.statusReport())
+    val toolchainStatus: StateFlow<String> = _toolchainStatus.asStateFlow()
+
+    private var lastCloneApk: File? = null
+
+    private fun appendTerminal(text: String) {
+        _terminalOutput.value = (_terminalOutput.value + text).takeLast(20_000)
+    }
+
+    fun loadForgeApps(includeSystem: Boolean = false) {
+        viewModelScope.launch {
+            _forgeApps.value = installedApps.list(includeSystem)
+        }
+    }
+
+    fun selectForgeApp(app: InstalledApp) {
+        _selectedForgeApp.value = app
+    }
+
+    fun runTerminalCommand(command: String) {
+        viewModelScope.launch {
+            appendTerminal("$ $command\n")
+            shellEngine.exec(command) { line -> appendTerminal(line + "\n") }
+            appendTerminal(shellEngine.homePathPrompt())
+        }
+    }
+
+    fun printEnvironmentReport() {
+        viewModelScope.launch {
+            appendTerminal("$ env-report\n")
+            appendTerminal(shellEngine.environmentReport())
+            appendTerminal(shellEngine.homePathPrompt())
+        }
+    }
+
+    fun provisionToolchain() {
+        viewModelScope.launch {
+            _forgeBusy.value = true
+            appendTerminal("$ provision toolchain\n")
+            provisioner.provision { line ->
+                appendTerminal(line + "\n")
+            }
+            _toolchainStatus.value = provisioner.statusReport()
+            _forgeBusy.value = false
+        }
+    }
+
+    fun runForgePipeline(useAndroidId: Boolean, useImei: Boolean, useMac: Boolean) {
+        val app = _selectedForgeApp.value ?: run {
+            appendTerminal("[ERR] no target app selected\n")
+            return
+        }
+        viewModelScope.launch {
+            _forgeBusy.value = true
+            _pipelineSteps.value = emptyList()
+            val ids = hardwareIdentifiers.value
+            val spec = SpoofSpec(
+                androidId = if (useAndroidId) ids.spoofedDeviceId.ifBlank { "spoofed-android-id" } else null,
+                imei = if (useImei) ids.spoofedImei.ifBlank { "000000000000000" } else null,
+                mac = if (useMac) ids.spoofedMac.ifBlank { "02:00:00:00:00:00" } else null
+            )
+            appendTerminal("$ forge ${app.packageName}\n")
+            val result = pipeline.run(app, spec) { stepUpdate ->
+                _pipelineSteps.value = _pipelineSteps.value + stepUpdate
+                appendTerminal("  [${stepUpdate.status}] ${stepUpdate.name} ${stepUpdate.detail}\n")
+            }
+            lastCloneApk = result.outputApk
+            appendTerminal((if (result.passed) "RESULT: " else "RESULT (failed): ") + result.reason + "\n")
+            _forgeBusy.value = false
+        }
+    }
+
+    fun installLastClone() {
+        val apk = lastCloneApk ?: run {
+            appendTerminal("[ERR] no built clone to install\n")
+            return
+        }
+        viewModelScope.launch {
+            appendTerminal(apkInstaller.install(apk) + "\n")
+        }
+    }
 
     val targetApps = repository.targetApps
     val deviceProfiles = repository.deviceProfiles

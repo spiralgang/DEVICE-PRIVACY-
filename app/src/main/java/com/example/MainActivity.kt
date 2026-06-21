@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -40,6 +41,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.DashboardScreen
 import com.example.ui.DeviceMaskingScreen
+import com.example.ui.ForgeScreen
 import com.example.ui.TargetAppsScreen
 import com.example.ui.theme.InkBlack
 import com.example.ui.theme.NeonCyan
@@ -73,7 +75,8 @@ fun PrivacyApp(viewModel: MainViewModel) {
     val tabs = listOf(
         NavTab("dashboard", "Vault", Icons.Filled.Home),
         NavTab("target_apps", "Ghost", Icons.Filled.List),
-        NavTab("masking", "Tools", Icons.Filled.Build)
+        NavTab("masking", "Tools", Icons.Filled.Build),
+        NavTab("forge", "Forge", Icons.Filled.Terminal)
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "dashboard"
@@ -142,6 +145,7 @@ fun PrivacyApp(viewModel: MainViewModel) {
                 }
                 composable("target_apps") { TargetAppsScreen(viewModel) }
                 composable("masking") { DeviceMaskingScreen(viewModel) }
+                composable("forge") { ForgeScreen(viewModel) }
             }
         }
     }
