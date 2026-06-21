@@ -98,6 +98,7 @@ class PrivacyRepository(context: Context) {
     private val _history = MutableStateFlow<List<HardwareIdentifiers>>(emptyList())
     val history: StateFlow<List<HardwareIdentifiers>> = _history.asStateFlow()
 
+    @Synchronized
     fun toggleAppSpoofing(packageName: String) {
         _targetApps.value = _targetApps.value.map {
             if (it.packageName == packageName) it.copy(isEnabledForSpoofing = !it.isEnabledForSpoofing) else it
@@ -108,12 +109,14 @@ class PrivacyRepository(context: Context) {
         _selectedProfile.value = profile
     }
 
+    @Synchronized
     fun addDeviceProfile(profile: DeviceProfile) {
         if (_deviceProfiles.value.none { it.model.equals(profile.model, ignoreCase = true) }) {
             _deviceProfiles.value = _deviceProfiles.value + profile
         }
     }
 
+    @Synchronized
     fun updateHardwareIds(
         useSpoofedMac: Boolean,
         spoofedMac: String,
@@ -145,6 +148,7 @@ class PrivacyRepository(context: Context) {
         _history.value = currentHistory
     }
     
+    @Synchronized
     fun resetToReal() {
         prefsManager.useSpoofedMac = false
         prefsManager.useSpoofedImei = false

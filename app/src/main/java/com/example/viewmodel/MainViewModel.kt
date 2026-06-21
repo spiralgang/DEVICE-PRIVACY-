@@ -141,7 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun runAiAnalysis() {
         viewModelScope.launch {
             _isAnalyzing.value = true
-            _aiAnalysisOutput.value = "Analyzing current configuration with NVIDIA Llama 3.3 70B..."
+            _aiAnalysisOutput.value = "Analyzing current configuration with NVIDIA Qwen3-Next 80B..."
             
             val apps = targetApps.value
             val profile = selectedProfile.value

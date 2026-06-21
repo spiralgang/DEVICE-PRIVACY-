@@ -9,12 +9,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -23,8 +32,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.example.ui.DashboardScreen
+import com.example.ui.DeviceMaskingScreen
+import com.example.ui.TargetAppsScreen
 import com.example.ui.theme.InkBlack
 import com.example.ui.theme.NeonCyan
 import com.example.ui.theme.NeonGreen
@@ -48,9 +64,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class NavTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PrivacyApp(viewModel: MainViewModel) {
+    val navController = rememberNavController()
+    val tabs = listOf(
+        NavTab("dashboard", "Vault", Icons.Filled.Home),
+        NavTab("target_apps", "Ghost", Icons.Filled.List),
+        NavTab("masking", "Tools", Icons.Filled.Build)
+    )
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route ?: "dashboard"
+
     Box(modifier = Modifier.fillMaxSize().graffitiBackground()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -73,13 +100,49 @@ fun PrivacyApp(viewModel: MainViewModel) {
                         titleContentColor = NeonMagenta
                     )
                 )
+            },
+            bottomBar = {
+                NavigationBar(
+                    containerColor = InkBlack.copy(alpha = 0.85f),
+                    contentColor = NeonCyan
+                ) {
+                    tabs.forEach { tab ->
+                        NavigationBarItem(
+                            selected = currentRoute == tab.route,
+                            onClick = {
+                                if (currentRoute != tab.route) {
+                                    navController.navigate(tab.route) {
+                                        popUpTo("dashboard") { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            },
+                            icon = { Icon(tab.icon, contentDescription = tab.label) },
+                            label = { Text(tab.label, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = NeonMagenta,
+                                selectedTextColor = NeonMagenta,
+                                indicatorColor = NeonPurple.copy(alpha = 0.4f),
+                                unselectedIconColor = NeonCyan.copy(alpha = 0.6f),
+                                unselectedTextColor = NeonCyan.copy(alpha = 0.6f)
+                            )
+                        )
+                    }
+                }
             }
         ) { innerPadding ->
-            DashboardScreen(
-                viewModel = viewModel,
-                controlPort = viewModel.controlPort,
+            NavHost(
+                navController = navController,
+                startDestination = "dashboard",
                 modifier = Modifier.padding(innerPadding)
-            )
+            ) {
+                composable("dashboard") {
+                    DashboardScreen(viewModel = viewModel, controlPort = viewModel.controlPort)
+                }
+                composable("target_apps") { TargetAppsScreen(viewModel) }
+                composable("masking") { DeviceMaskingScreen(viewModel) }
+            }
         }
     }
 }
@@ -94,7 +157,6 @@ private fun Modifier.graffitiBackground(): Modifier = this
         )
     )
     .drawBehind {
-        // Neon glow blooms (controlled "splatter").
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(NeonMagenta.copy(alpha = 0.32f), Color.Transparent),
@@ -122,7 +184,6 @@ private fun Modifier.graffitiBackground(): Modifier = this
             center = Offset(size.width * 0.5f, size.height * 0.95f),
             radius = size.minDimension * 0.6f
         )
-        // Acid-green controlled drips down the left edge.
         val dripColor = NeonGreen.copy(alpha = 0.5f)
         listOf(0.18f, 0.46f, 0.74f).forEachIndexed { i, fx ->
             val x = size.width * fx

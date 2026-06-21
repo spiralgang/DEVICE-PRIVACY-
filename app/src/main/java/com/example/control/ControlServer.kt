@@ -17,6 +17,7 @@ import java.io.PrintWriter
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.Collections
 
 /**
  * Lightweight loopback control terminal for live, on-device modification of the
@@ -43,6 +44,7 @@ class ControlServer(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var serverSocket: ServerSocket? = null
     private var acceptJob: Job? = null
+    private val clients = Collections.synchronizedSet(mutableSetOf<Socket>())
 
     @Volatile
     var lastError: String? = null
@@ -76,10 +78,25 @@ class ControlServer(
             serverSocket?.close()
         } catch (_: Exception) {
         }
+        // Close active client sockets so blocking readLine() calls unblock.
+        synchronized(clients) {
+            clients.forEach { runCatching { it.close() } }
+            clients.clear()
+        }
         scope.cancel()
     }
 
     private fun handleClient(client: Socket) {
+        clients.add(client)
+        try {
+            serveClient(client)
+        } finally {
+            clients.remove(client)
+            runCatching { client.close() }
+        }
+    }
+
+    private fun serveClient(client: Socket) {
         client.use { sock ->
             val reader = BufferedReader(InputStreamReader(sock.getInputStream()))
             val writer = PrintWriter(sock.getOutputStream(), true)
