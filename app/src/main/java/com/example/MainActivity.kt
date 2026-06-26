@@ -41,7 +41,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.ui.DashboardScreen
 import com.example.ui.DeviceMaskingScreen
-import com.example.ui.EdgeScreen
+import com.example.ui.ForgeScreen
 import com.example.ui.TargetAppsScreen
 import com.example.ui.theme.InkBlack
 import com.example.ui.theme.NeonCyan
@@ -76,7 +76,7 @@ fun PrivacyApp(viewModel: MainViewModel) {
         NavTab("dashboard", "Vault", Icons.Filled.Home),
         NavTab("target_apps", "Ghost", Icons.Filled.List),
         NavTab("masking", "Tools", Icons.Filled.Build),
-        NavTab("edge", "Edge", Icons.Filled.Terminal)
+        NavTab("forge", "Forge", Icons.Filled.Terminal)
     )
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route ?: "dashboard"
@@ -145,7 +145,7 @@ fun PrivacyApp(viewModel: MainViewModel) {
                 }
                 composable("target_apps") { TargetAppsScreen(viewModel) }
                 composable("masking") { DeviceMaskingScreen(viewModel) }
-                composable("edge") { EdgeScreen(viewModel) }
+                composable("forge") { ForgeScreen(viewModel) }
             }
         }
     }
