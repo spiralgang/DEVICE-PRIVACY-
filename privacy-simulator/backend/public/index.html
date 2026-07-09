@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Privacy Emulator — real AI via Puter.js (keyless, free)</title>
+<script src="https://js.puter.com/v2/"></script>
+<script src="/app-config.js"></script>
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --fg:#e6edf3; --muted:#8b949e; --acc:#2f81f7; --ok:#3fb950; --err:#f85149; --warn:#d29922; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  header { padding:12px 18px; border-bottom:1px solid #21262d; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; }
+  header .tag { font-size:12px; color:var(--muted); }
+  .wrap { display:grid; grid-template-columns: 1fr 320px; gap:14px; max-width:1100px; margin:0 auto; padding:14px; }
+  @media (max-width:820px){ .wrap{ grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid #30363d; border-radius:10px; padding:12px; }
+  .panel h2 { font-size:13px; margin:0 0 10px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  select, input, textarea, button { font:inherit; }
+  .row { display:flex; gap:8px; }
+  select { flex:1; padding:8px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:var(--fg); }
+  #chat { background:#0d1117; border:1px solid #30363d; border-radius:8px; padding:12px; min-height:300px; max-height:60vh; overflow:auto; white-space:pre-wrap; }
+  .msg { margin:8px 0; padding:10px 12px; border-radius:8px; }
+  .msg.user { background:#11233f; margin-left:auto; max-width:88%; }
+  .msg.ai { background:#1c2128; max-width:92%; }
+  .msg.sys { background:#211c12; border:1px solid #4d3a12; color:var(--warn); font-family:monospace; white-space:pre-wrap; }
+  .msg.img img { max-width:100%; border-radius:6px; }
+  textarea { flex:1; resize:vertical; min-height:48px; padding:10px; border-radius:8px; border:1px solid #30363d; background:#0d1117; color:var(--fg); }
+  .send { padding:0 16px; border:0; border-radius:8px; background:var(--acc); color:#fff; cursor:pointer; font-weight:600; }
+  .send:disabled { opacity:.5; cursor:default; }
+  label.chk { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; }
+  .tabs { display:flex; gap:6px; margin-bottom:10px; }
+  .tabs button { flex:1; padding:8px; border:1px solid #30363d; background:#0d1117; color:var(--fg); border-radius:8px; cursor:pointer; }
+  .tabs button.active { border-color:var(--acc); background:#11233f; }
+  .maskrow { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+  .maskrow label { font-size:11px; color:var(--muted); }
+  .maskrow input { width:100%; padding:6px; border-radius:6px; border:1px solid #30363d; background:#0d1117; color:var(--fg); }
+  #status { margin-top:10px; font-size:12px; color:var(--muted); }
+  #status.ok { color:var(--ok); } #status.err { color:var(--err); } #status.warn { color:var(--warn); }
+  code { background:#0d1117; padding:1px 5px; border-radius:4px; }
+  .small { font-size:11px; color:var(--muted); }
+  button.ghost { background:transparent; border:1px solid #30363d; color:var(--fg); border-radius:8px; padding:7px 10px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Privacy Emulator</h1>
+  <span class="tag">REAL AI · Puter.js · keyless · free to dev · 500+ live models</span>
+</header>
+<div class="wrap">
+  <div class="panel">
+    <div class="tabs">
+      <button data-tab="chat" class="active">Chat</button>
+      <button data-tab="image">Image</button>
+      <button data-tab="agent">Local Shell</button>
+      <button data-tab="mask">Hardware Mask</button>
+    </div>
+
+    <!-- CHAT -->
+    <div id="tab-chat">
+      <div class="row" style="margin-bottom:8px;">
+        <select id="model"></select>
+        <label class="chk"><input type="checkbox" id="web" /> web search</label>
+        <label class="chk"><input type="checkbox" id="stream" checked /> stream</label>
+      </div>
+      <div id="chat"></div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="input" placeholder="Real prompt — answered by a live model via Puter (no key). Enter to send, Shift+Enter for newline."></textarea>
+        <button class="send" id="send">Send</button>
+      </div>
+    </div>
+
+    <!-- IMAGE -->
+    <div id="tab-image" hidden>
+      <div class="row" style="margin-bottom:8px;">
+        <input id="imgprompt" placeholder="Describe an image to generate…" />
+        <button class="send" id="gen">Generate</button>
+      </div>
+      <div id="imgout" class="msg ai" style="min-height:120px;">Generated images appear here.</div>
+    </div>
+
+    <!-- AGENT -->
+    <div id="tab-agent" hidden>
+      <div class="row" style="margin-bottom:8px;">
+        <input id="cmd" placeholder="local shell command (e.g. uname -a)" />
+        <button class="send" id="run">Run</button>
+      </div>
+      <div id="execout" class="msg sys">Local shell is off unless the server was started with <code>ALLOW_EXEC=1</code> and you pass <code>?confirm=1</code>. This is a REAL shell on this device — guarded on purpose.</div>
+    </div>
+
+    <!-- MASK -->
+    <div id="tab-mask" hidden>
+      <div class="maskrow">
+        <div><label>Model</label><input id="m-model" placeholder="Pixel 9" /></div>
+        <div><label>Brand</label><input id="m-brand" placeholder="google" /></div>
+        <div><label>Board</label><input id="m-board" placeholder="comet" /></div>
+        <div><label>Manufacturer</label><input id="m-manuf" placeholder="Google" /></div>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <button class="send" id="applymask">Apply Mask</button>
+        <button class="ghost" id="unmask">Unmask</button>
+        <button class="ghost" id="refreshmask">Refresh</button>
+      </div>
+      <div id="maskout" class="msg sys">Current fingerprint loads here.</div>
+    </div>
+
+    <div id="status">Loading Puter…</div>
+  </div>
+
+  <div class="panel">
+    <h2>Live Catalog</h2>
+    <div id="catalog" class="small"></div>
+    <h2 style="margin-top:14px;">How it's real</h2>
+    <ul class="small" style="margin:0; padding-left:16px; color:var(--muted);">
+      <li>No API keys. Puter authenticates per-user in-browser.</li>
+      <li>Calls hit real OpenAI/Anthropic/DeepSeek/xAI/Google models.</li>
+      <li>Web search uses live OpenAI web_search tool.</li>
+      <li>Image gen calls a real diffusion model.</li>
+      <li>Hardware mask writes real <code>setprop</code> (rooted) or persists.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const MODELS = {
+  'gpt-5.4-nano': 'OpenAI · GPT-5.4 Nano',
+  'gpt-5.3-chat': 'OpenAI · GPT-5.3 Chat (web)',
+  'gpt-5.5':      'OpenAI · GPT-5.5 (web)',
+  'deepseek-chat':'DeepSeek · Chat',
+  'tencent/hy3':  'Tencent · Hy3',
+  'claude-sonnet-4-6':'Anthropic · Claude Sonnet 4.6',
+  'x-ai/grok-4.5':'xAI · Grok 4.5 (web)',
+  'google/gemini-2.5-flash':'Google · Gemini 2.5 Flash (web)',
+};
+const $ = s => document.querySelector(s);
+const chat = $('#chat'), status = $('#status'), input = $('#input'), send = $('#send');
+
+// tabs
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  ['chat','image','agent','mask'].forEach(t => $('#tab-'+t).hidden = (b.dataset.tab !== t));
+});
+
+// model dropdown
+const sel = $('#model');
+Object.entries(MODELS).forEach(([k,v]) => { const o=document.createElement('option'); o.value=k; o.textContent=v; sel.appendChild(o); });
+sel.value = 'gpt-5.4-nano';
+
+async function ensurePuter(){ for(let i=0;i<60;i++){ if(window.puter&&window.puter.ai) return true; await new Promise(r=>setTimeout(r,100)); } return false; }
+
+function addMsg(role, text){ const d=document.createElement('div'); d.className='msg '+role; d.textContent=text; chat.appendChild(d); chat.scrollTop=chat.scrollHeight; return d; }
+
+async function sendMsg(){
+  const text=input.value.trim(); if(!text) return;
+  input.value=''; addMsg('user', text); const bubble=addMsg('ai','…'); send.disabled=true;
+  try{
+    const ok=await ensurePuter();
+    if(!ok){ bubble.textContent='Puter.js failed to load (offline?)'; status.textContent='Puter load error'; status.className='err'; send.disabled=false; return; }
+    const model=sel.value;
+    const opts={ model, stream: $('#stream').checked };
+    if($('#web').checked && (model==='gpt-5.3-chat'||model==='gpt-5.5'||model==='x-ai/grok-4.5'||model==='google/gemini-2.5-flash')) opts.tools=[{type:'web_search'}];
+    const stream=await puter.ai.chat(text, opts);
+    if(opts.stream){
+      let out='';
+      for await(const part of stream){ if(part?.type==='text'){ out+=part.text; bubble.textContent=out; chat.scrollTop=chat.scrollHeight; } else if(part?.type==='error'){ bubble.textContent='Error: '+part.message; } }
+    } else { bubble.textContent = (stream && (stream.message?.content ?? stream.text)) || String(stream); }
+    status.textContent='Answered by '+MODELS[model]; status.className='ok';
+  }catch(e){ bubble.textContent='Error: '+(e.message||e); status.textContent='Request failed'; status.className='err'; }
+  finally{ send.disabled=false; input.focus(); }
+}
+send.onclick=sendMsg;
+input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); } });
+
+// image gen
+$('#gen').onclick = async () => {
+  const p=$('#imgprompt').value.trim(); if(!p) return;
+  const out=$('#imgout'); out.className='msg ai'; out.textContent='Generating…'; out.innerHTML='';
+  try{
+    const ok=await ensurePuter(); if(!ok){ out.textContent='Puter.js failed to load'; return; }
+    const img=await puter.ai.txt2img(p,{ model:'gpt-image-2' }); // real diffusion model
+    out.textContent=''; out.appendChild(img); // Puter returns an <img> element
+    status.textContent='Image generated'; status.className='ok';
+  }catch(e){ out.textContent='Error: '+(e.message||e); status.className='err'; }
+};
+
+// local shell
+$('#run').onclick = async () => {
+  const cmd=$('#cmd').value.trim(); if(!cmd) return;
+  const out=$('#execout'); out.className='msg sys'; out.textContent='$ '+cmd+'\n…';
+  try{
+    const r=await fetch('/api/exec?confirm=1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})});
+    const j=await r.json();
+    if(j.error){ out.textContent='$ '+cmd+'\n'+j.error+(j.hint?'\n('+j.hint+')':''); return; }
+    out.textContent='$ '+cmd+'\n'+(j.output||'(no output)')+(j.code?('\nexit '+j.code):'');
+  }catch(e){ out.textContent='$ '+cmd+'\nfetch error: '+e.message; }
+};
+
+// hardware mask
+async function loadMask(){
+  const out=$('#maskout');
+  try{
+    const j=await (await fetch('/api/mask')).json();
+    let s='rooted: '+(j.rooted?'yes':'no')+'\n';
+    for(const [k,v] of Object.entries(j.props||{})) s+=`${k}\n  live=${v.live}\n  masked=${v.masked??'(none)'}\n  active=${v.active}\n`;
+    out.textContent=s;
+  }catch(e){ out.textContent='error: '+e.message; }
+}
+$('#refreshmask').onclick=loadMask;
+$('#applymask').onclick = async () => {
+  const body={ 'ro.product.model':$('#m-model').value, 'ro.product.brand':$('#m-brand').value, 'ro.product.board':$('#m-board').value, 'ro.product.manufacturer':$('#m-manuf').value };
+  for(const k in body) if(!body[k]) delete body[k];
+  const r=await fetch('/api/mask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json();
+  $('#maskout').textContent=JSON.stringify(j,null,2);
+  loadMask();
+};
+$('#unmask').onclick = async () => {
+  await fetch('/api/mask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({unmask:true})});
+  loadMask();
+};
+
+// catalog + status — app queries Puter's live endpoints + runtime tier on load
+(async () => {
+  const ok = await ensurePuter();
+  status.textContent = ok ? 'Ready — pick a real model and type. Keyless & free via Puter.js.'
+                          : 'Puter.js not loaded — check your connection.';
+  status.className = ok ? 'ok' : 'err';
+  try {
+    const [st, rt] = await Promise.all([
+      (await fetch('/api/status')).json(),
+      (await fetch('/api/runtime')).json().catch(() => null),
+    ]);
+    const tier = rt ? `runtime tier: <code>${rt.active.tier}</code> via ${rt.active.engine}<br>` : '';
+    $('#catalog').innerHTML = Object.entries(MODELS).map(([k, v]) => `• ${v}`).join('<br>') +
+      `<br><br>provider: <code>${st.provider}</code><br>billing: ${st.billing}` +
+      `<br>local shell: ${st.execEnabled ? 'enabled' : 'disabled'}<br>${tier}` +
+      `<br>Puter live: <code>${st.puter.apiBase}</code> (keyless)`;
+  } catch (e) { $('#catalog').textContent = '(status unavailable)'; }
+  loadMask();
+})();
+</script>
+</body>
+</html>
