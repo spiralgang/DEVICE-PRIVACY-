@@ -9,7 +9,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const MASK_FILE = path.join(os.homedir(), '.privacy-simulator', 'mask.json');
 
