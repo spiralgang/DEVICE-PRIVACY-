@@ -74,7 +74,7 @@ function applyMask(body = {}) {
       persisted[p] = val;
       // Real apply if we can.
       if (isRooted()) {
-        try { execSync(`setprop ${p} ${val}`); applied.push(`${p}=${val} (setprop)`); }
+        try { execFileSync('setprop', [p, val]); applied.push(p + '=' + val + ' (setprop)'); }
         catch (e) { errors.push(`${p}: ${e.message}`); }
       } else {
         applied.push(`${p}=${val} (persisted; needs root for live setprop)`);
