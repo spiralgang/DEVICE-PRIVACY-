@@ -1,0 +1,41 @@
+{
+  "app": "privacy-emulator",
+  "version": "2.0.0",
+  "description": "Real emulator: Puter.js live models + containerized or Termux-shell code execution. No sim.",
+  "server": {
+    "port": 3000,
+    "bind": "0.0.0.0",
+    "heapMb": 1536
+  },
+  "puter": {
+    "sdk": "https://js.puter.com/v2/",
+    "apiBase": "https://api.puter.com",
+    "chatPath": "/v1/ai/chat",
+    "keyless": true,
+    "liveQueryOnStartup": true,
+    "models": {
+      "openai":   { "slug": "gpt-5.4-nano", "web": false, "endpoint": "openai" },
+      "deepseek": { "slug": "deepseek-chat", "web": false, "endpoint": "deepseek" },
+      "research": { "slug": "gpt-5.3-chat", "web": true,  "endpoint": "research", "tools": ["web_search"] }
+    }
+  },
+  "runtime": {
+    "strategy": "prefer-container-then-termux",
+    "preferred": {
+      "kind": "docker-alpine",
+      "engine": "docker",
+      "image": "alpine:3.21",
+      "rootfs": "/data/data/com.termux/files/home/alpine-sandbox",
+      "shell": "/bin/sh",
+      "note": "containerized busybox glibc alpine env for AI code execution"
+    },
+    "fallback": {
+      "kind": "termux-shell",
+      "engine": "local-shell",
+      "shell": "/data/data/com.termux/files/usr/bin/bash",
+      "note": "Termux/userland shell the AI uses to execute code and render artifacts"
+    },
+    "execOptIn": true,
+    "execGuard": "confirm=1 + ALLOW_EXEC=1"
+  }
+}
