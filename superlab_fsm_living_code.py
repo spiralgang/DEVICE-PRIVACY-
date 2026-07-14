@@ -157,12 +157,15 @@ def run_fsm(llm, context: str, max_cycles: int = 1) -> dict:
             if "WRITE A PYTHON CHILD AGENT" in resp:
                 m = re.search(r"```python\n(.*?)```", resp, re.DOTALL)
                 if m:
+                if m:
                     try:
                         inst = compile_child(m.group(1), llm)
-                        LOG.info("compiled child agent at stage %s -> %s", state,
-                                 inst.execute({"description": context[:200]}))
+                        try:
+                            res = inst.execute({"description": context[:200]})
+                            LOG.info("compiled child agent at stage %s -> %s", state, res)
+                        except Exception as e:
+                            LOG.warning("child execution failed: %s", e)
                     except ValueError as e:
-                        LOG.warning("child compile skipped: %s", e)
     return transcript
 
 
